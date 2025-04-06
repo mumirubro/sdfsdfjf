@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Bot token
-BOT_TOKEN = "7646562599:AAHfKzz6B2JtRrT5m80ZOGncoyUfcEgzquA"
+BOT_TOKEN = "7646562599:AAFxT8lHyAN7kjxQN737UA1diilkC6v3ai4"
 
 # API Constants
 STRIPE_PK = "pk_live_sd4VzXOpmDU8DIdWT77qHT1q"

